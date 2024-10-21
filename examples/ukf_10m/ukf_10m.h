@@ -45,9 +45,15 @@ struct ukf_sensor_params_t {
 
 struct ukf_state_t {
     real_t attitude[4]; /* x, y, z, W */
+
     real_t angular_velocity[3]; /* rolling (rad/s), pitching (rad/s),
                                    yawing (rad/s) */
+
     real_t inertia[9]; /* x, y, z (m/s^2) */
+
+    real_t mag_ref[3]; /* GCRF, x, y, z (nT) */
+
+    real_t sun_ref[3]; /* GCRF, unit vector */
 };
 
 struct ukf_state_error_t {

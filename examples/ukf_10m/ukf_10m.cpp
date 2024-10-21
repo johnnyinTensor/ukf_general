@@ -36,7 +36,10 @@ enum AHRS_Keys {
     /* AHRS measurement vector fields. */
     Fss,
     Gyroscope,
-    Magnetometer
+    Magnetometer,
+    /* AHRS measurement vector fields. */
+    SunGCRF,
+    MagGCRF
 };
 
 /*
