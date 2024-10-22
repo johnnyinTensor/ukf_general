@@ -34,6 +34,7 @@ extern "C" {
 Parameters for sensor model.
 
 Members are as follows:
+    - fss_covariance: covariance of fine sun sensor readings (XYZ)
     - gyro_covariance: covariance of gyro readings (XYZ)
     - mag_covariance: covariance of magnetometer readings (XYZ)
 */
@@ -84,6 +85,11 @@ attitude representation in struct ukf_state_t, which is x, y, z, W
 */
 void ukf_set_attitude(real_t w, real_t x, real_t y, real_t z);
 void ukf_set_angular_velocity(real_t x, real_t y, real_t z);
+void ukf_set_sun_ref(real_t x, real_t y, real_t z);
+void ukf_set_mag_ref(real_t x, real_t y, real_t z);
+void ukf_set_moi(real_t xx, real_t xy, real_t xz, real_t yy, real_t yz, real_t zz);
+
+
 
 /* Functions for getting the state vector and covariance. */
 void ukf_set_state(struct ukf_state_t *in);

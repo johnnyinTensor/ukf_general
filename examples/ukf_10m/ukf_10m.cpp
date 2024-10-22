@@ -92,7 +92,13 @@ AHRS_StateVector AHRS_StateVector::derivative<>() const {
     output.set_field<Attitude>(omega_q.conjugate() * get_field<Attitude>());
 
     /* Assume constant angular velocity. */
-    output.set_field<AngularVelocity>(UKF::Vector<3>(0, 0, 0));
+    UKF::Vector<3> temp;
+    temp = get_field<Inertia>().inverse() * (-1.0 * get_field<AngularVelocity>().cross(get_field<Inertia>()*get_field<AngularVelocity>()));
+    output.set_field<AngularVelocity>(temp);
+
+    output.set_field<SunGCRF>(UKF::Vector<3>(0, 0, 0));
+    output.set_field<MagGCRF>(UKF::Vector<3>(0, 0, 0));
+    output.set_field<Inertia>(UKF::Matrix<3,3>(0, 0, 0, 0, 0, 0, 0, 0, 0));
 
     return output;
 }
@@ -113,7 +119,7 @@ template <> template <>
 UKF::Vector<3> AHRS_MeasurementVector::expected_measurement
 <AHRS_StateVector, Fss, AHRS_SensorErrorVector>(
         const AHRS_StateVector& state, const AHRS_SensorErrorVector& input) {
-    return state.get_field<Attitude>() * UKF::Vector<3>(0, 0, -G_ACCEL);
+    return state.get_field<Attitude>() * state.get_field<SunGCRF>();
 }
 
 template <> template <>
@@ -128,12 +134,7 @@ UKF::Vector<3> AHRS_MeasurementVector::expected_measurement
 <AHRS_StateVector, Magnetometer, AHRS_SensorErrorVector>(
         const AHRS_StateVector& state, const AHRS_SensorErrorVector& input) {
     return input.get_field<MagnetometerBias>().array() + input.get_field<MagnetometerScaleFactor>().array() *
-        (state.get_field<Attitude>() * UKF::Vector<3>(
-            input.get_field<MagneticFieldNorm>() *
-                std::cos(std::atan(input.get_field<MagneticFieldInclination>())),
-            0.0,
-            -input.get_field<MagneticFieldNorm>() *
-                std::sin(std::atan(input.get_field<MagneticFieldInclination>())))).array();
+        (state.get_field<Attitude>() * state.get_field<MagGCRF>()).array();
 }
 
 }
@@ -271,33 +272,62 @@ void ukf_set_angular_velocity(real_t x, real_t y, real_t z) {
     ahrs.state.set_field<AngularVelocity>(UKF::Vector<3>(x, y, z));
 }
 
+void ukf_set_sun_ref(real_t x, real_t y, real_t z) {
+    ahrs.state.set_field<SunGCRF>(UKF::Vector<3>(x, y, z));
+}
+
+void ukf_set_mag_ref(real_t x, real_t y, real_t z) {
+    ahrs.state.set_field<MagGCRF>(UKF::Vector<3>(x, y, z));
+}
+
+void ukf_set_moi(real_t xx, real_t xy, real_t xz, real_t yy, real_t yz, real_t zz) {
+    ahrs.state.set_field<Inertia>(UKF::Matrix<3,3>(xx,xy,xz,xy,yy,yz,xz,yz,zz));
+}
+
+
 void ukf_get_state(struct ukf_state_t *in) {
     in->attitude[0] = ahrs.state.get_field<Attitude>().x();
     in->attitude[1] = ahrs.state.get_field<Attitude>().y();
     in->attitude[2] = ahrs.state.get_field<Attitude>().z();
     in->attitude[3] = ahrs.state.get_field<Attitude>().w();
+
     in->angular_velocity[0] = ahrs.state.get_field<AngularVelocity>()[0];
     in->angular_velocity[1] = ahrs.state.get_field<AngularVelocity>()[1];
     in->angular_velocity[2] = ahrs.state.get_field<AngularVelocity>()[2];
 
-    in->inertia[0] = inertia[0];
-    in->inertia[1] = inertia[1];
-    in->inertia[2] = inertia[2];
-    in->inertia[3] = inertia[3];
-    in->inertia[4] = inertia[4];
-    in->inertia[5] = inertia[5];
-    in->inertia[6] = inertia[6];
-    in->inertia[7] = inertia[7];
-    in->inertia[8] = inertia[8];
+    in->inertia[0] = ahrs.state.get_field<Inertia>()[0];
+    in->inertia[1] = ahrs.state.get_field<Inertia>()[1];
+    in->inertia[2] = ahrs.state.get_field<Inertia>()[2];
+    in->inertia[3] = ahrs.state.get_field<Inertia>()[3];
+    in->inertia[4] = ahrs.state.get_field<Inertia>()[4];
+    in->inertia[5] = ahrs.state.get_field<Inertia>()[5];
+    in->inertia[6] = ahrs.state.get_field<Inertia>()[6];
+    in->inertia[7] = ahrs.state.get_field<Inertia>()[7];
+
+    in->mag_ref[0] = ahrs.state.get_field<MagGCRF>()[0];
+    in->mag_ref[1] = ahrs.state.get_field<MagGCRF>()[1];
+    in->mag_ref[2] = ahrs.state.get_field<MagGCRF>()[2];
+
+    in->sun_ref[0] = ahrs.state.get_field<SunGCRF>()[0];
+    in->sun_ref[1] = ahrs.state.get_field<SunGCRF>()[1];
+    in->sun_ref[2] = ahrs.state.get_field<SunGCRF>()[2];
 }
 
 void ukf_set_state(struct ukf_state_t *in) {
     ahrs.state.set_field<Attitude>(
         UKF::Quaternion(in->attitude[3], in->attitude[0], in->attitude[1], in->attitude[2]));
+
     ahrs.state.set_field<AngularVelocity>(
         UKF::Vector<3>(in->angular_velocity[0], in->angular_velocity[1], in->angular_velocity[2]));
+
     ahrs.state.set_field<Inertia>(
         UKF::Matrix<3,3>(in->inertia[0], in->inertia[3], in->inertia[6],in->inertia[1], in->inertia[4], in->inertia[7],in->inertia[2], in->inertia[5], in->inertia[8]));
+
+    ahrs.state.set_field<MagGCRF>(
+        UKF::Vector<3>(in->mag_ref[0], in->mag_ref[1], in->mag_ref[2]));
+
+    ahrs.state.set_field<SunGCRF>(
+        UKF::Vector<3>(in->sun_ref[0], in->sun_ref[1], in->sun_ref[2]));
 }
 
 void ukf_get_state_covariance(
@@ -406,7 +436,6 @@ void ukf_iterate(float dt) {
     ahrs.a_priori_step(dt);
     ahrs.innovation_step(meas, ahrs_errors.state);
     ahrs.a_posteriori_step();
-
 }
 
 void ukf_set_process_noise(real_t process_noise_covariance[AHRS_StateVector::covariance_size()]) {
@@ -435,7 +464,6 @@ void ukf_get_parameters_error(struct ukf_sensor_errors_t *in) {
     AHRS_SensorErrorVector::StateVectorDelta parameters_error;
     parameters_error =
         (ahrs_errors.root_covariance * ahrs_errors.root_covariance.transpose()).cwiseAbs().rowwise().sum().cwiseSqrt();
-
 
     in->gyro_bias[0] = parameters_error[0];
     in->gyro_bias[1] = parameters_error[1];
