@@ -164,9 +164,9 @@ their arguments flipped.
 */
 template <> template <>
 UKF::Vector<3> AHRS_MeasurementVector::expected_measurement
-<AHRS_SensorErrorVector, Accelerometer, AHRS_StateVector>(
+<AHRS_SensorErrorVector, Fss, AHRS_StateVector>(
         const AHRS_SensorErrorVector& state, const AHRS_StateVector& input) {
-    return state.get_field<AccelerometerBias>() + input.get_field<Attitude>() * UKF::Vector<3>(0, 0, -G_ACCEL);
+    return input.get_field<Attitude>() * input.get_field<SunGCRF>();
 }
 
 template <> template <>
@@ -181,12 +181,7 @@ UKF::Vector<3> AHRS_MeasurementVector::expected_measurement
 <AHRS_SensorErrorVector, Magnetometer, AHRS_StateVector>(
         const AHRS_SensorErrorVector& state, const AHRS_StateVector& input) {
     return state.get_field<MagnetometerBias>().array() + state.get_field<MagnetometerScaleFactor>().array() *
-        (input.get_field<Attitude>() * UKF::Vector<3>(
-            state.get_field<MagneticFieldNorm>() *
-                std::cos(std::atan(state.get_field<MagneticFieldInclination>())),
-            0.0,
-            -state.get_field<MagneticFieldNorm>() *
-                std::sin(std::atan(state.get_field<MagneticFieldInclination>())))).array();
+        (input.get_field<Attitude>() * input.get_field<MagGCRF>()).array();
 }
 
 }
@@ -230,7 +225,6 @@ void ukf_init() {
         5e-3 * UKF::Vector<3>::Ones();
 
     /* Initialise scale factor and bias errors. */
-    ahrs_errors.state.set_field<AccelerometerBias>(UKF::Vector<3>(0, 0, 0));
     ahrs_errors.state.set_field<GyroscopeBias>(UKF::Vector<3>(0, 0, 0));
     ahrs_errors.state.set_field<MagnetometerBias>(UKF::Vector<3>(0, 0, 0));
     ahrs_errors.state.set_field<MagnetometerScaleFactor>(UKF::Vector<3>(1, 1, 1));
@@ -355,13 +349,13 @@ void ukf_get_state_error(struct ukf_state_error_t *in) {
 }
 
 /*
-This assumes accelerometer, gyroscope and magnetometer measurements are
+This assumes fss, gyroscope and magnetometer measurements are
 present and in that order.
 */
 void ukf_get_innovation(struct ukf_innovation_t *in) {
-    in->accel[0] = ahrs.innovation[0];
-    in->accel[1] = ahrs.innovation[1];
-    in->accel[2] = ahrs.innovation[2];
+    in->fss[0] = ahrs.innovation[0];
+    in->fss[1] = ahrs.innovation[1];
+    in->fss[2] = ahrs.innovation[2];
     in->gyro[0] = ahrs.innovation[3];
     in->gyro[1] = ahrs.innovation[4];
     in->gyro[2] = ahrs.innovation[5];
