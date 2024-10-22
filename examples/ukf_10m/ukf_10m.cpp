@@ -48,8 +48,8 @@ The AHRS state vector contains the following:
 */
 using AHRS_StateVector = UKF::StateVector<
     UKF::Field<Attitude, UKF::Quaternion>,
-    UKF::Field<AngularVelocity, UKF::Vector<3>>
-    UKF::Field<SunGCRF, UKF::Vector<3>>
+    UKF::Field<AngularVelocity, UKF::Vector<3>>,
+    UKF::Field<SunGCRF, UKF::Vector<3>>,
     UKF::Field<MagGCRF, UKF::Vector<3>>
 >;
 
@@ -80,6 +80,10 @@ namespace Parameters {
 template <> constexpr real_t AlphaSquared<AHRS_SensorErrorVector> = 1.0;
 template <> constexpr real_t Kappa<AHRS_SensorErrorVector> = 3.0;
 }
+extern UKF::Matrix<3, 3> inertia;  // Declaration
+
+
+
 
 /* AHRS process model. */
 template <> template <>
@@ -94,16 +98,17 @@ AHRS_StateVector AHRS_StateVector::derivative<>() const {
 
     /* Assume constant angular velocity. */
     UKF::Vector<3> temp;
-    temp = get_field<Inertia>().inverse() * (-1.0 * get_field<AngularVelocity>().cross(get_field<Inertia>()*get_field<AngularVelocity>()));
+    temp = inertia.inverse() * (-1.0 * get_field<AngularVelocity>().cross(inertia*get_field<AngularVelocity>()));
     output.set_field<AngularVelocity>(temp);
 
     output.set_field<SunGCRF>(UKF::Vector<3>(0, 0, 0));
     output.set_field<MagGCRF>(UKF::Vector<3>(0, 0, 0));
-    output.set_field<Inertia>(UKF::Matrix<3,3>(0, 0, 0, 0, 0, 0, 0, 0, 0));
 
     return output;
 }
 }
+
+static UKF::Matrix<3, 3> inertia;
 
 using AHRS_MeasurementVector = UKF::DynamicMeasurementVector<
     UKF::Field<Fss, UKF::Vector<3>>,
@@ -196,7 +201,7 @@ using AHRS_ParameterEstimationFilter = UKF::SquareRootParameterEstimationCore<
 static AHRS_Filter ahrs;
 static AHRS_ParameterEstimationFilter ahrs_errors;
 static AHRS_MeasurementVector meas;
-static UKF::Matrix<3, 3> inertia;
+
 
 /*
 The following functions provide a ctypes-compatible interface for ease of
@@ -207,7 +212,6 @@ void ukf_init(const double* moi_tensor) {
     /* Initialise state vector and covariance. */
     ahrs.state.set_field<Attitude>(UKF::Quaternion(1, 0, 0, 0));
     ahrs.state.set_field<AngularVelocity>(UKF::Vector<3>(0, 0, 0));
-    inertia = Eigen::Map<const Eigen::Matrix3d>(array);
     ahrs.root_covariance = AHRS_StateVector::CovarianceMatrix::Zero();
     ahrs.root_covariance.diagonal() <<
         1e0, 1e0, 3.2e0,
@@ -257,6 +261,11 @@ void ukf_init(const double* moi_tensor) {
         1e-7f * UKF::Vector<3>::Ones(),
         1e-5f * UKF::Vector<3>::Ones(), 1e-6f * UKF::Vector<3>::Ones(),
         1e-7f, 1e-7f;
+
+    // Option 3: Using comma initializer
+    inertia <<  moi_tensor[0], moi_tensor[1], moi_tensor[2],
+                moi_tensor[3], moi_tensor[4], moi_tensor[5],
+                moi_tensor[6], moi_tensor[7], moi_tensor[8];
 }
 
 void ukf_set_attitude(real_t w, real_t x, real_t y, real_t z) {
@@ -273,10 +282,6 @@ void ukf_set_sun_ref(real_t x, real_t y, real_t z) {
 
 void ukf_set_mag_ref(real_t x, real_t y, real_t z) {
     ahrs.state.set_field<MagGCRF>(UKF::Vector<3>(x, y, z));
-}
-
-void ukf_set_moi(real_t xx, real_t xy, real_t xz, real_t yy, real_t yz, real_t zz) {
-    ahrs.state.set_field<Inertia>(UKF::Matrix<3,3>(xx,xy,xz,xy,yy,yz,xz,yz,zz));
 }
 
 

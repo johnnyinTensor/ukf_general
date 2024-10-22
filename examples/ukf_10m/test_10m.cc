@@ -9,7 +9,7 @@ int main(){
     double moi[3][3] = {{0.0333, 0, 0}, 
                           {0, 0.0060, 0}, 
                           {0, 0, 0.0333}};
-    ukf_init(moi);
+    ukf_init((const double*)moi);
 
     while (1) {
 
