@@ -24,7 +24,6 @@ enum AHRS_Keys {
     /* AHRS filter fields. */
     Attitude,
     AngularVelocity,
-    Inertia,
 
     /* Parameter estimation filter fields. */
     GyroscopeBias,
@@ -50,6 +49,8 @@ The AHRS state vector contains the following:
 using AHRS_StateVector = UKF::StateVector<
     UKF::Field<Attitude, UKF::Quaternion>,
     UKF::Field<AngularVelocity, UKF::Vector<3>>
+    UKF::Field<SunGCRF, UKF::Vector<3>>
+    UKF::Field<MagGCRF, UKF::Vector<3>>
 >;
 
 namespace UKF {
@@ -202,11 +203,11 @@ The following functions provide a ctypes-compatible interface for ease of
 testing.
 */
 
-void ukf_init() {
+void ukf_init(const double* moi_tensor) {
     /* Initialise state vector and covariance. */
     ahrs.state.set_field<Attitude>(UKF::Quaternion(1, 0, 0, 0));
     ahrs.state.set_field<AngularVelocity>(UKF::Vector<3>(0, 0, 0));
-    inertia << UKF::Matrix<3, 3>::Zero();
+    inertia = Eigen::Map<const Eigen::Matrix3d>(array);
     ahrs.root_covariance = AHRS_StateVector::CovarianceMatrix::Zero();
     ahrs.root_covariance.diagonal() <<
         1e0, 1e0, 3.2e0,
@@ -289,15 +290,6 @@ void ukf_get_state(struct ukf_state_t *in) {
     in->angular_velocity[1] = ahrs.state.get_field<AngularVelocity>()[1];
     in->angular_velocity[2] = ahrs.state.get_field<AngularVelocity>()[2];
 
-    in->inertia[0] = ahrs.state.get_field<Inertia>()[0];
-    in->inertia[1] = ahrs.state.get_field<Inertia>()[1];
-    in->inertia[2] = ahrs.state.get_field<Inertia>()[2];
-    in->inertia[3] = ahrs.state.get_field<Inertia>()[3];
-    in->inertia[4] = ahrs.state.get_field<Inertia>()[4];
-    in->inertia[5] = ahrs.state.get_field<Inertia>()[5];
-    in->inertia[6] = ahrs.state.get_field<Inertia>()[6];
-    in->inertia[7] = ahrs.state.get_field<Inertia>()[7];
-
     in->mag_ref[0] = ahrs.state.get_field<MagGCRF>()[0];
     in->mag_ref[1] = ahrs.state.get_field<MagGCRF>()[1];
     in->mag_ref[2] = ahrs.state.get_field<MagGCRF>()[2];
@@ -313,9 +305,6 @@ void ukf_set_state(struct ukf_state_t *in) {
 
     ahrs.state.set_field<AngularVelocity>(
         UKF::Vector<3>(in->angular_velocity[0], in->angular_velocity[1], in->angular_velocity[2]));
-
-    ahrs.state.set_field<Inertia>(
-        UKF::Matrix<3,3>(in->inertia[0], in->inertia[3], in->inertia[6],in->inertia[1], in->inertia[4], in->inertia[7],in->inertia[2], in->inertia[5], in->inertia[8]));
 
     ahrs.state.set_field<MagGCRF>(
         UKF::Vector<3>(in->mag_ref[0], in->mag_ref[1], in->mag_ref[2]));

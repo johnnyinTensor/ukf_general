@@ -23,6 +23,16 @@ SOFTWARE.
 #ifndef UKF_10M_H
 #define UKF_10M_H
 
+
+#ifdef __cplusplus
+    #include <cstdint>  // for C++
+#else
+    #include <stdint.h> // for C
+#endif
+
+
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -50,10 +60,7 @@ struct ukf_state_t {
     real_t angular_velocity[3]; /* rolling (rad/s), pitching (rad/s),
                                    yawing (rad/s) */
 
-    real_t inertia[9]; /* x, y, z (m/s^2) */
-
     real_t mag_ref[3]; /* GCRF, x, y, z (nT) */
-
     real_t sun_ref[3]; /* GCRF, unit vector */
 };
 
@@ -77,7 +84,7 @@ struct ukf_innovation_t {
     real_t mag[3];
 };
 
-void ukf_init(void);
+void ukf_init(const double* moi_tensor);
 
 /*
 Note: W, x, y, z in the parameters for ukf_set_attitude differs to the stored
@@ -87,7 +94,7 @@ void ukf_set_attitude(real_t w, real_t x, real_t y, real_t z);
 void ukf_set_angular_velocity(real_t x, real_t y, real_t z);
 void ukf_set_sun_ref(real_t x, real_t y, real_t z);
 void ukf_set_mag_ref(real_t x, real_t y, real_t z);
-void ukf_set_moi(real_t xx, real_t xy, real_t xz, real_t yy, real_t yz, real_t zz);
+
 
 
 
